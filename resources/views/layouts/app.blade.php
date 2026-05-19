@@ -218,7 +218,10 @@
         }
         .nav-divider { height: 1px; background: #e0e0e0; margin: 10px 20px; }
         .nav-topic {
-            display: block;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
             height: 0;
             overflow: hidden;
             opacity: 0;
@@ -234,6 +237,15 @@
             padding: 8px 24px 8px 47px;
         }
         .nav-topic:hover { background: #f3f2ee; }
+        .nav-topic.active { color: #0a66c2; font-weight: 800; }
+        .nav-topic-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+        .nav-topic-count {
+            flex: 0 0 auto;
+            color: #777;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .nav-topic-all { color: #0a66c2; font-weight: 800; }
         .nav-help { margin-top: auto; }
         .help-icon {
             width: 31px;
@@ -292,6 +304,8 @@
                 height: auto;
                 opacity: 1;
             }
+            .nav-topic,
+            html.sidebar-expanded .nav-topic { padding: 8px 24px 8px 47px; }
             .main-content,
             html.sidebar-expanded .main-content {
                 margin-left: 0;
@@ -376,6 +390,30 @@
                 </span>
                 <span class="nav-label">Content</span>
             </a>
+
+            @foreach(($sidebarTopicGroups ?? collect()) as $group)
+                <div class="nav-section">{{ $group['title'] }}</div>
+                @foreach($group['topics'] as $topic)
+                    @php
+                        $topicKey = $topic->slug ?: $topic->id;
+                        $isTopicActive = request()->routeIs('browse.category')
+                            && (string) request()->route('category') === (string) $topicKey
+                            && (string) request('type', $group['type']) === (string) $group['type'];
+                    @endphp
+                    <a
+                        href="{{ route('browse.category', ['category' => $topicKey, 'type' => $group['type']]) }}"
+                        class="nav-topic {{ $isTopicActive ? 'active' : '' }}"
+                        title="{{ $topic->name }}"
+                    >
+                        <span class="nav-topic-name">{{ $topic->name }}</span>
+                        <span class="nav-topic-count">{{ $topic->total }}</span>
+                    </a>
+                @endforeach
+                <a href="{{ route('browse', ['type' => $group['type']]) }}" class="nav-topic nav-topic-all" title="All {{ $group['label'] }} topics">
+                    <span class="nav-topic-name">Show all {{ $group['label'] }}</span>
+                </a>
+                <div class="nav-divider"></div>
+            @endforeach
 
             <a href="{{ route('hands-on.index') }}" class="nav-item {{ request()->routeIs('hands-on*') ? 'active' : '' }}" title="Hands-On Tech">
                 <span class="nav-icon">

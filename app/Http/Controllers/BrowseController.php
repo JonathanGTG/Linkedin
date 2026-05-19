@@ -7,6 +7,7 @@ use Illuminate\Support\Str;
 use App\Models\Course;
 use App\Models\Category;
 use App\Models\Skill;
+use App\Support\LinkedInTopicCatalog;
 
 class BrowseController extends Controller
 {
@@ -23,6 +24,7 @@ class BrowseController extends Controller
         $categories = $this->categoriesForType($selectedType);
         $topicGroups = $this->topicGroupsForType($selectedType);
         [$roleGuides, $extraRoleGuides] = $this->roleGuidesForType($selectedType);
+        $linkedinTopics = $this->linkedinTopicsForType($selectedType);
         $query = Course::published()->with('category')->withLearningMetrics();
         $this->applyContentType($query, $selectedType);
 
@@ -35,11 +37,11 @@ class BrowseController extends Controller
                 default  => null,
             };
         }
-        if ($request->filled('q')) $query->where('title','like','%'.$request->q.'%');
+        if ($request->filled('q')) $this->applySearch($query, (string) $request->q);
         $this->applySort($query, (string) $request->query('sort', 'popular'));
         $courses = $query->paginate(12)->withQueryString();
 
-        return view('browse.index', compact('courses','categories','topicGroups','selectedType','typeLabel','roleGuides','extraRoleGuides'));
+        return view('browse.index', compact('courses','categories','topicGroups','selectedType','typeLabel','roleGuides','extraRoleGuides','linkedinTopics'));
     }
 
     public function byCategory(string $category, Request $request)
@@ -50,6 +52,7 @@ class BrowseController extends Controller
         $categories = $this->categoriesForType($selectedType);
         $topicGroups = $this->topicGroupsForType($selectedType);
         [$roleGuides, $extraRoleGuides] = $this->roleGuidesForType($selectedType);
+        $linkedinTopics = $this->linkedinTopicsForType($selectedType);
         $query = Course::published()->where('category_id',$category->id)->with('category')->withLearningMetrics();
         $this->applyContentType($query, $selectedType);
 
@@ -62,7 +65,7 @@ class BrowseController extends Controller
                 default  => null,
             };
         }
-        if ($request->filled('q')) $query->where('title','like','%'.$request->q.'%');
+        if ($request->filled('q')) $this->applySearch($query, (string) $request->q);
         if ($request->filled('skill')) {
             $skill = (string) $request->skill;
             $query->whereHas('skills', function ($q) use ($skill) {
@@ -84,7 +87,7 @@ class BrowseController extends Controller
             ->limit(8)
             ->get();
 
-        return view('browse.index', compact('courses','categories','topicGroups','category','selectedType','typeLabel','topicChips','roleGuides','extraRoleGuides'));
+        return view('browse.index', compact('courses','categories','topicGroups','category','selectedType','typeLabel','topicChips','roleGuides','extraRoleGuides','linkedinTopics'));
     }
 
     private function selectedType(Request $request): string
@@ -134,6 +137,21 @@ class BrowseController extends Controller
         };
     }
 
+    private function applySearch($query, string $term): void
+    {
+        $query->where(function ($search) use ($term) {
+            $search
+                ->where('title', 'like', '%'.$term.'%')
+                ->orWhere('description', 'like', '%'.$term.'%')
+                ->orWhereHas('category', function ($category) use ($term) {
+                    $category->where('name', 'like', '%'.$term.'%');
+                })
+                ->orWhereHas('skills', function ($skill) use ($term) {
+                    $skill->where('skills.name', 'like', '%'.$term.'%');
+                });
+        });
+    }
+
     private function roleGuidesForType(string $type): array
     {
         $roles = match ($type) {
@@ -173,5 +191,56 @@ class BrowseController extends Controller
         ]);
 
         return [$mapped->take(20)->values(), $mapped->slice(20)->values()];
+    }
+
+    private function linkedinTopicsForType(string $type)
+    {
+        return collect(LinkedInTopicCatalog::topicsForType($type))
+            ->map(fn (string $topic) => $this->mapLinkedinTopic($topic, $type));
+    }
+
+    private function mapLinkedinTopic(string $topic, string $type): array
+    {
+        $aliases = LinkedInTopicCatalog::aliases($topic);
+        $category = Category::query()
+            ->whereHas('courses', fn ($query) => $query->published()->where('id', 'like', '%'.$type))
+            ->where(function ($query) use ($aliases) {
+                foreach ($aliases as $alias) {
+                    $query
+                        ->orWhere('name', $alias)
+                        ->orWhere('slug', Str::slug($alias));
+                }
+            })
+            ->withCount(['courses as type_courses_count' => fn ($query) => $query->published()->where('id', 'like', '%'.$type)])
+            ->orderByDesc('type_courses_count')
+            ->first();
+
+        if ($category) {
+            return [
+                'title' => $topic,
+                'url' => route('topics.show', Str::slug($topic)),
+                'count' => (int) $category->type_courses_count,
+                'source' => 'category',
+            ];
+        }
+
+        $terms = $aliases;
+        $count = Course::published()
+            ->where('id', 'like', '%'.$type)
+            ->where(function ($query) use ($terms) {
+                foreach ($terms as $term) {
+                    $query
+                        ->orWhere('title', 'like', '%'.$term.'%')
+                        ->orWhere('description', 'like', '%'.$term.'%');
+                }
+            })
+            ->count();
+
+        return [
+            'title' => $topic,
+            'url' => route('topics.show', Str::slug($topic)),
+            'count' => $count,
+            'source' => 'search',
+        ];
     }
 }

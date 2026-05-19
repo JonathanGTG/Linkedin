@@ -18,6 +18,7 @@
     $featuredCategories = $categories->take(3)->values();
     $topicGroups = $topicGroups ?? collect();
     $topicChips = $topicChips ?? collect();
+    $linkedinTopics = collect($linkedinTopics ?? []);
     $roleGuides = collect($roleGuides ?? []);
     $extraRoleGuides = collect($extraRoleGuides ?? []);
     $software = ['Microsoft Excel', 'Power BI', 'Microsoft Copilot', 'ChatGPT', 'SAP ERP', 'LinkedIn', 'Salesforce', 'PowerPoint', 'SharePoint', 'Outlook', 'Microsoft Project', 'Microsoft Teams', 'Microsoft Word', 'Microsoft 365', 'Google Analytics', 'Google Workspace', 'Dynamics', 'Microsoft Access'];
@@ -298,6 +299,37 @@
   .topic-col-list a:hover { color: var(--li-blue); text-decoration: underline; }
   .topic-show-all { display: block; margin-top: 8px; font-weight: 700; color: var(--li-blue); }
   .topic-show-all:hover { text-decoration: underline; }
+  .topic-link-card {
+    display: block;
+    min-height: 86px;
+    padding: 16px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    background: #fff;
+    color: var(--li-dark);
+    text-decoration: none;
+  }
+  .topic-link-card:hover { background: #f8fafc; border-color: #cfd6dd; }
+  .topic-source {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    color: var(--li-muted);
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  .topic-source span {
+    display: inline-flex;
+    align-items: center;
+    min-height: 22px;
+    padding: 0 8px;
+    border-radius: 999px;
+    background: #eef3f8;
+    color: #0a66c2;
+    font-size: 12px;
+    font-weight: 800;
+  }
 
   .chips-section {
     background: var(--li-white);
@@ -680,17 +712,20 @@
       <div class="content-title">{{ $typeLabel }} Topics</div>
       <a class="see-all" href="{{ $typeUrl($selectedType) }}">Show all</a>
     </div>
+    <div class="content-sub" style="margin-bottom:16px;">Daftar topic mengikuti halaman LinkedIn Learning {{ $typeLabel }} dan diarahkan ke kategori atau pencarian course di database lokal.</div>
     <div class="topics-grid">
-      @forelse($topicGroups as $topic => $items)
-        <div>
-          <div class="topic-col-title">{{ $topic }}</div>
-          <ul class="topic-col-list">
-            @foreach($items->take(5) as $item)
-              <li><a href="{{ route('course.show', $item) }}">{{ $item->title }}</a></li>
-            @endforeach
-          </ul>
-          <a class="topic-show-all" href="{{ $categoryLink($items->first()->category) }}">Show all</a>
-        </div>
+      @forelse($linkedinTopics as $topic)
+        <a class="topic-link-card" href="{{ $topic['url'] }}">
+          <div class="topic-col-title">{{ $topic['title'] }}</div>
+          <div class="topic-source">
+            {{ number_format($topic['count']) }} course match
+            @if($topic['source'] === 'category')
+              <span>Category</span>
+            @else
+              <span>Search</span>
+            @endif
+          </div>
+        </a>
       @empty
         <div class="course-result-note">Belum ada topic untuk {{ $typeLabel }}.</div>
       @endforelse

@@ -1,0 +1,515 @@
+-- ============================================================
+-- PHPMyAdmin SQL notes for this Laravel project
+-- ============================================================
+-- Semua query di file ini sengaja dibuat sebagai komentar agar tidak
+-- langsung berjalan saat file dibuka/import di phpMyAdmin.
+--
+-- Cara pakai:
+-- 1. Copy blok query yang dibutuhkan.
+-- 2. Hapus awalan "-- " pada baris query.
+-- 3. Ganti placeholder seperti :user_id, :course_id, :q, :type, :offset.
+--
+-- ============================================================
+-- 3NF AUDIT
+-- ============================================================
+-- Status: skema utama sudah mendekati 3NF karena relasi besar sudah
+-- dipisah ke tabel master dan pivot:
+-- users, categories, instructors, skills, courses, chapters, videos,
+-- course_instructor, course_skill, enrollments, video_progress,
+-- course_ratings, career_goals, learning_plan_modules,
+-- learning_plan_courses.
+--
+-- Namun belum strict 3NF karena masih ada kolom denormalized/cache:
+-- - courses.instructor_name menduplikasi instructors.name melalui course_instructor.
+-- - course_instructor.nama menduplikasi instructors.name.
+-- - course_skill.skill_nama menduplikasi skills.name.
+-- - courses.durasi menduplikasi courses.durasi_detik.
+-- - videos.durasi menduplikasi videos.durasi_detik.
+-- - chapters.jumlah_video bisa dihitung dari COUNT(videos.id).
+-- - courses.rating, courses.rating_count, courses.jumlah_learner bisa dihitung
+--   dari course_ratings/enrollments jika datanya murni lokal. Kalau ini adalah
+--   metric hasil scrape/cache, boleh dipertahankan tetapi bukan strict 3NF.
+-- - certifications.provider bisa dinormalisasi ke certification_providers
+--   jika provider memiliki metadata sendiri atau sering dipakai berulang.
+--
+-- Saran jika ingin strict 3NF setelah data siap:
+-- ALTER TABLE courses DROP COLUMN instructor_name;
+-- ALTER TABLE course_instructor DROP COLUMN nama;
+-- ALTER TABLE course_skill DROP COLUMN skill_nama;
+-- ALTER TABLE courses DROP COLUMN durasi;
+-- ALTER TABLE videos DROP COLUMN durasi;
+-- ALTER TABLE chapters DROP COLUMN jumlah_video;
+--
+-- ============================================================
+-- COMMON: published course with learning metrics
+-- Equivalent of Course::published()->withLearningMetrics()
+-- ============================================================
+-- SELECT
+--     c.*,
+--     cat.name AS category_name,
+--     cat.slug AS category_slug,
+--     (
+--         SELECT COUNT(*)
+--         FROM enrollments e
+--         WHERE e.course_id = c.id
+--           AND e.status IN ('in_progress', 'completed')
+--     ) AS local_learner_count,
+--     (
+--         SELECT COUNT(*)
+--         FROM course_ratings cr
+--         WHERE cr.course_id = c.id
+--     ) AS user_rating_count,
+--     (
+--         SELECT AVG(cr.rating)
+--         FROM course_ratings cr
+--         WHERE cr.course_id = c.id
+--     ) AS user_rating_avg
+-- FROM courses c
+-- LEFT JOIN categories cat ON cat.id = c.category_id
+-- WHERE c.is_published = 1;
+--
+-- ============================================================
+-- HANDS-ON PAGE
+-- Equivalent of HandsOnController@index
+-- ============================================================
+-- SELECT
+--     c.*,
+--     cat.name AS category_name,
+--     cat.slug AS category_slug,
+--     (
+--         SELECT COUNT(*)
+--         FROM enrollments e
+--         WHERE e.course_id = c.id
+--           AND e.status IN ('in_progress', 'completed')
+--     ) AS local_learner_count,
+--     (
+--         SELECT COUNT(*)
+--         FROM course_ratings cr
+--         WHERE cr.course_id = c.id
+--     ) AS user_rating_count,
+--     (
+--         SELECT AVG(cr.rating)
+--         FROM course_ratings cr
+--         WHERE cr.course_id = c.id
+--     ) AS user_rating_avg
+-- FROM courses c
+-- LEFT JOIN categories cat ON cat.id = c.category_id
+-- WHERE c.is_published = 1
+--   AND c.title LIKE '%Hands-On%'
+--   AND (:level IS NULL OR c.level = :level)
+--   AND (:q IS NULL OR c.title LIKE CONCAT('%', :q, '%'))
+--   AND (
+--       :durasi IS NULL
+--       OR (:durasi = 'short' AND c.durasi_detik <= 1800)
+--       OR (:durasi = 'medium' AND c.durasi_detik BETWEEN 1801 AND 3600)
+--       OR (:durasi = 'long' AND c.durasi_detik > 3600)
+--   )
+-- ORDER BY local_learner_count DESC, c.jumlah_learner DESC, c.title ASC
+-- LIMIT 12 OFFSET :offset;
+--
+-- ============================================================
+-- BROWSE PAGE
+-- Equivalent of BrowseController@index
+-- :type values are B, T, C.
+-- ============================================================
+-- SELECT
+--     c.*,
+--     cat.name AS category_name,
+--     cat.slug AS category_slug,
+--     (
+--         SELECT COUNT(*)
+--         FROM enrollments e
+--         WHERE e.course_id = c.id
+--           AND e.status IN ('in_progress', 'completed')
+--     ) AS local_learner_count,
+--     (
+--         SELECT AVG(cr.rating)
+--         FROM course_ratings cr
+--         WHERE cr.course_id = c.id
+--     ) AS user_rating_avg
+-- FROM courses c
+-- LEFT JOIN categories cat ON cat.id = c.category_id
+-- WHERE c.is_published = 1
+--   AND c.id LIKE CONCAT('%', :type)
+--   AND (:level IS NULL OR c.level = :level)
+--   AND (
+--       :durasi IS NULL
+--       OR (:durasi = 'short' AND c.durasi_detik <= 1800)
+--       OR (:durasi = 'medium' AND c.durasi_detik BETWEEN 1801 AND 7200)
+--       OR (:durasi = 'long' AND c.durasi_detik > 7200)
+--   )
+--   AND (
+--       :q IS NULL
+--       OR c.title LIKE CONCAT('%', :q, '%')
+--       OR c.description LIKE CONCAT('%', :q, '%')
+--       OR cat.name LIKE CONCAT('%', :q, '%')
+--       OR EXISTS (
+--           SELECT 1
+--           FROM course_skill cs
+--           JOIN skills s ON s.id = cs.skill_id
+--           WHERE cs.course_id = c.id
+--             AND s.name LIKE CONCAT('%', :q, '%')
+--       )
+--   )
+-- ORDER BY local_learner_count DESC, c.jumlah_learner DESC
+-- LIMIT 12 OFFSET :offset;
+--
+-- Browse categories for selected type:
+-- SELECT
+--     cat.*,
+--     COUNT(c.id) AS type_courses_count
+-- FROM categories cat
+-- JOIN courses c ON c.category_id = cat.id
+-- WHERE c.is_published = 1
+--   AND c.id LIKE CONCAT('%', :type)
+-- GROUP BY cat.id, cat.name, cat.slug, cat.description, cat.icon, cat.created_at, cat.updated_at
+-- ORDER BY type_courses_count DESC, cat.name ASC;
+--
+-- Browse topic chips for a category:
+-- SELECT
+--     s.*,
+--     COUNT(*) AS total
+-- FROM skills s
+-- JOIN course_skill cs ON cs.skill_id = s.id
+-- JOIN courses c ON c.id = cs.course_id
+-- WHERE c.is_published = 1
+--   AND c.category_id = :category_id
+--   AND c.id LIKE CONCAT('%', :type)
+-- GROUP BY s.id, s.name, s.slug, s.created_at, s.updated_at
+-- ORDER BY total DESC
+-- LIMIT 8;
+--
+-- ============================================================
+-- COURSE DETAIL PAGE
+-- Equivalent of CourseController@show
+-- ============================================================
+-- SELECT
+--     c.*,
+--     cat.name AS category_name,
+--     (
+--         SELECT COUNT(*)
+--         FROM enrollments e
+--         WHERE e.course_id = c.id
+--           AND e.status IN ('in_progress', 'completed')
+--     ) AS local_learner_count,
+--     (
+--         SELECT COUNT(*)
+--         FROM course_ratings cr
+--         WHERE cr.course_id = c.id
+--     ) AS user_rating_count,
+--     (
+--         SELECT AVG(cr.rating)
+--         FROM course_ratings cr
+--         WHERE cr.course_id = c.id
+--     ) AS user_rating_avg
+-- FROM courses c
+-- LEFT JOIN categories cat ON cat.id = c.category_id
+-- WHERE c.id = :course_id
+-- LIMIT 1;
+--
+-- SELECT * FROM chapters WHERE course_id = :course_id ORDER BY urutan ASC;
+-- SELECT * FROM videos WHERE course_id = :course_id ORDER BY urutan ASC;
+--
+-- SELECT s.*
+-- FROM skills s
+-- JOIN course_skill cs ON cs.skill_id = s.id
+-- WHERE cs.course_id = :course_id
+-- ORDER BY s.name ASC;
+--
+-- SELECT i.*
+-- FROM instructors i
+-- JOIN course_instructor ci ON ci.instructor_id = i.id
+-- WHERE ci.course_id = :course_id
+-- ORDER BY i.name ASC;
+--
+-- SELECT *
+-- FROM enrollments
+-- WHERE user_id = :user_id
+--   AND course_id = :course_id
+-- LIMIT 1;
+--
+-- SELECT *
+-- FROM course_ratings
+-- WHERE user_id = :user_id
+--   AND course_id = :course_id
+-- LIMIT 1;
+--
+-- SELECT cr.*, u.name AS user_name, u.avatar AS user_avatar
+-- FROM course_ratings cr
+-- JOIN users u ON u.id = cr.user_id
+-- WHERE cr.course_id = :course_id
+--   AND cr.review IS NOT NULL
+--   AND cr.review <> ''
+-- ORDER BY cr.created_at DESC
+-- LIMIT 20;
+--
+-- SELECT vp.*
+-- FROM video_progress vp
+-- JOIN videos v ON v.id = vp.video_id
+-- WHERE vp.user_id = :user_id
+--   AND v.course_id = :course_id;
+--
+-- SELECT
+--     ROUND(
+--         100 * SUM(CASE WHEN vp.is_completed = 1 THEN 1 ELSE 0 END) / NULLIF(COUNT(v.id), 0)
+--     ) AS progress_percent
+-- FROM videos v
+-- LEFT JOIN video_progress vp
+--     ON vp.video_id = v.id
+--    AND vp.user_id = :user_id
+-- WHERE v.course_id = :course_id;
+--
+-- Related courses:
+-- SELECT
+--     c.*,
+--     (
+--         SELECT COUNT(*)
+--         FROM enrollments e
+--         WHERE e.course_id = c.id
+--           AND e.status IN ('in_progress', 'completed')
+--     ) AS local_learner_count
+-- FROM courses c
+-- WHERE c.is_published = 1
+--   AND c.category_id = :category_id
+--   AND c.id <> :course_id
+-- ORDER BY local_learner_count DESC, c.jumlah_learner DESC
+-- LIMIT 4;
+--
+-- Rate or update rating:
+-- INSERT INTO course_ratings (user_id, course_id, rating, review, created_at, updated_at)
+-- VALUES (:user_id, :course_id, :rating, :review, NOW(), NOW())
+-- ON DUPLICATE KEY UPDATE
+--     rating = VALUES(rating),
+--     review = VALUES(review),
+--     updated_at = NOW();
+--
+-- Mark video complete:
+-- INSERT INTO video_progress (user_id, video_id, detik_terakhir, is_completed, created_at, updated_at)
+-- VALUES (:user_id, :video_id, :detik_terakhir, 1, NOW(), NOW())
+-- ON DUPLICATE KEY UPDATE
+--     detik_terakhir = VALUES(detik_terakhir),
+--     is_completed = 1,
+--     updated_at = NOW();
+--
+-- INSERT INTO enrollments (user_id, course_id, status, enrolled_at, created_at, updated_at)
+-- VALUES (:user_id, :course_id, 'in_progress', NOW(), NOW(), NOW())
+-- ON DUPLICATE KEY UPDATE
+--     status = 'in_progress',
+--     enrolled_at = COALESCE(enrolled_at, NOW()),
+--     updated_at = NOW();
+--
+-- ============================================================
+-- HOME PAGE
+-- Equivalent of HomeController@index
+-- ============================================================
+-- Top picks:
+-- SELECT
+--     c.*,
+--     cat.name AS category_name,
+--     (
+--         SELECT COUNT(*)
+--         FROM enrollments e
+--         WHERE e.course_id = c.id
+--           AND e.status IN ('in_progress', 'completed')
+--     ) AS local_learner_count
+-- FROM courses c
+-- LEFT JOIN categories cat ON cat.id = c.category_id
+-- WHERE c.is_published = 1
+-- ORDER BY local_learner_count DESC, c.jumlah_learner DESC
+-- LIMIT 8;
+--
+-- Short courses:
+-- SELECT
+--     c.*,
+--     cat.name AS category_name,
+--     (
+--         SELECT AVG(cr.rating)
+--         FROM course_ratings cr
+--         WHERE cr.course_id = c.id
+--     ) AS user_rating_avg
+-- FROM courses c
+-- LEFT JOIN categories cat ON cat.id = c.category_id
+-- WHERE c.is_published = 1
+--   AND c.durasi_detik <= 1800
+-- ORDER BY user_rating_avg DESC, c.rating DESC
+-- LIMIT 8;
+--
+-- Recent courses:
+-- SELECT c.*, cat.name AS category_name
+-- FROM courses c
+-- LEFT JOIN categories cat ON cat.id = c.category_id
+-- WHERE c.is_published = 1
+--   AND c.release_date IS NOT NULL
+-- ORDER BY c.release_date DESC
+-- LIMIT 8;
+--
+-- In-progress courses for current user:
+-- SELECT e.*, c.title, c.slug, c.thumbnail, cat.name AS category_name
+-- FROM enrollments e
+-- JOIN courses c ON c.id = e.course_id
+-- LEFT JOIN categories cat ON cat.id = c.category_id
+-- WHERE e.user_id = :user_id
+--   AND e.status = 'in_progress'
+-- ORDER BY e.created_at DESC
+-- LIMIT 4;
+--
+-- Saved courses for current user:
+-- SELECT e.*, c.title, c.slug, c.thumbnail, cat.name AS category_name
+-- FROM enrollments e
+-- JOIN courses c ON c.id = e.course_id
+-- LEFT JOIN categories cat ON cat.id = c.category_id
+-- WHERE e.user_id = :user_id
+--   AND e.status = 'saved'
+-- ORDER BY e.created_at DESC
+-- LIMIT 8;
+--
+-- Recommended courses based on user's learning categories:
+-- SELECT c.*, cat.name AS category_name
+-- FROM courses c
+-- LEFT JOIN categories cat ON cat.id = c.category_id
+-- WHERE c.is_published = 1
+--   AND c.category_id IN (
+--       SELECT DISTINCT c2.category_id
+--       FROM enrollments e2
+--       JOIN courses c2 ON c2.id = e2.course_id
+--       WHERE e2.user_id = :user_id
+--         AND c2.category_id IS NOT NULL
+--   )
+-- ORDER BY c.jumlah_learner DESC
+-- LIMIT 8;
+--
+-- Trending skills:
+-- SELECT s.name, s.slug, COUNT(*) AS total
+-- FROM skills s
+-- JOIN course_skill cs ON cs.skill_id = s.id
+-- JOIN courses c ON c.id = cs.course_id
+-- WHERE c.is_published = 1
+-- GROUP BY s.id, s.name, s.slug
+-- ORDER BY total DESC
+-- LIMIT 14;
+--
+-- Content stats by type:
+-- SELECT 'B' AS type, 'Business' AS label, COUNT(*) AS total
+-- FROM courses WHERE is_published = 1 AND id LIKE '%B'
+-- UNION ALL
+-- SELECT 'T' AS type, 'Technology' AS label, COUNT(*) AS total
+-- FROM courses WHERE is_published = 1 AND id LIKE '%T'
+-- UNION ALL
+-- SELECT 'C' AS type, 'Creative' AS label, COUNT(*) AS total
+-- FROM courses WHERE is_published = 1 AND id LIKE '%C';
+--
+-- ============================================================
+-- LIBRARY PAGE
+-- Equivalent of LibraryController@tab/save/enroll
+-- ============================================================
+-- SELECT e.*, c.title, c.slug, c.thumbnail, cat.name AS category_name
+-- FROM enrollments e
+-- JOIN courses c ON c.id = e.course_id
+-- LEFT JOIN categories cat ON cat.id = c.category_id
+-- WHERE e.user_id = :user_id
+--   AND e.status = :status
+-- ORDER BY e.created_at DESC;
+--
+-- Save course:
+-- INSERT INTO enrollments (user_id, course_id, status, created_at, updated_at)
+-- VALUES (:user_id, :course_id, 'saved', NOW(), NOW())
+-- ON DUPLICATE KEY UPDATE
+--     status = 'saved',
+--     updated_at = NOW();
+--
+-- Enroll course:
+-- INSERT INTO enrollments (user_id, course_id, status, enrolled_at, created_at, updated_at)
+-- VALUES (:user_id, :course_id, 'in_progress', NOW(), NOW(), NOW())
+-- ON DUPLICATE KEY UPDATE
+--     status = 'in_progress',
+--     enrolled_at = COALESCE(enrolled_at, NOW()),
+--     updated_at = NOW();
+--
+-- ============================================================
+-- CERTIFICATIONS PAGE
+-- Equivalent of CertificationController
+-- ============================================================
+-- Provider totals by certification type:
+-- SELECT provider, COUNT(*) AS total
+-- FROM certifications
+-- WHERE is_published = 1
+--   AND type = :certification_type
+-- GROUP BY provider
+-- ORDER BY provider ASC;
+--
+-- Certifications by type:
+-- SELECT *
+-- FROM certifications
+-- WHERE is_published = 1
+--   AND type = :certification_type
+-- ORDER BY provider ASC, title ASC;
+--
+-- Certifications by provider:
+-- SELECT *
+-- FROM certifications
+-- WHERE is_published = 1
+--   AND type = :certification_type
+--   AND provider = :provider
+-- ORDER BY title ASC;
+--
+-- ============================================================
+-- JOURNEY PAGE
+-- Equivalent of JourneyController
+-- ============================================================
+-- Current user's career goal:
+-- SELECT *
+-- FROM career_goals
+-- WHERE user_id = :user_id
+-- LIMIT 1;
+--
+-- Learning plan modules and courses:
+-- SELECT
+--     lpm.*,
+--     lpc.id AS plan_course_id,
+--     lpc.urutan AS course_order,
+--     c.title,
+--     c.slug,
+--     c.thumbnail
+-- FROM learning_plan_modules lpm
+-- LEFT JOIN learning_plan_courses lpc ON lpc.module_id = lpm.id
+-- LEFT JOIN courses c ON c.id = lpc.course_id
+-- WHERE lpm.career_goal_id = :career_goal_id
+-- ORDER BY lpm.urutan ASC, lpc.urutan ASC;
+--
+-- All published courses for goal/module picker:
+-- SELECT id, title, slug
+-- FROM courses
+-- WHERE is_published = 1
+-- ORDER BY title ASC;
+--
+-- Save or update career goal:
+-- INSERT INTO career_goals (user_id, role_saat_ini, goal_title, created_at, updated_at)
+-- VALUES (:user_id, :role_saat_ini, :goal_title, NOW(), NOW())
+-- ON DUPLICATE KEY UPDATE
+--     role_saat_ini = VALUES(role_saat_ini),
+--     goal_title = VALUES(goal_title),
+--     updated_at = NOW();
+--
+-- Add module:
+-- INSERT INTO learning_plan_modules (career_goal_id, judul_modul, deskripsi, urutan, created_at, updated_at)
+-- SELECT
+--     :career_goal_id,
+--     :judul_modul,
+--     :deskripsi,
+--     COALESCE(MAX(urutan), 0) + 1,
+--     NOW(),
+--     NOW()
+-- FROM learning_plan_modules
+-- WHERE career_goal_id = :career_goal_id;
+--
+-- Add course to module:
+-- INSERT INTO learning_plan_courses (module_id, course_id, urutan, created_at, updated_at)
+-- SELECT
+--     :module_id,
+--     :course_id,
+--     COALESCE(MAX(urutan), 0) + 1,
+--     NOW(),
+--     NOW()
+-- FROM learning_plan_courses
+-- WHERE module_id = :module_id
+-- ON DUPLICATE KEY UPDATE updated_at = updated_at;

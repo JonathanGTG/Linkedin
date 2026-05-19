@@ -9,6 +9,7 @@ use App\Http\Controllers\HandsOnController;
 use App\Http\Controllers\CertificationController;
 use App\Http\Controllers\JourneyController;
 use App\Http\Controllers\RoleGuideController;
+use App\Http\Controllers\TopicController;
 use App\Http\Controllers\AdminController;
 
 Route::get('/', function () {
@@ -38,6 +39,7 @@ Route::middleware('auth')->group(function () {
     // Browse
     Route::get('/browse',                         [BrowseController::class,    'index'])->name('browse');
     Route::get('/browse/{category}',              [BrowseController::class,    'byCategory'])->name('browse.category');
+    Route::get('/topics/{topic}',                  [TopicController::class,     'show'])->name('topics.show');
 
     // Course detail
     Route::get('/course/{course}',                [CourseController::class,    'show'])->name('course.show');
