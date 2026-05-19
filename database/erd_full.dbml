@@ -1,0 +1,873 @@
+Table topics {
+  topic_id varchar [pk]
+  slug varchar [unique]
+  name varchar
+  created_at datetime
+  updated_at datetime
+}
+
+Table courses {
+  course_id varchar [pk]
+  topic_id varchar
+  slug varchar [unique]
+  title varchar
+  level varchar
+  duration_text varchar
+  duration_seconds int
+  release_date date
+  rating decimal
+  rating_count int
+  learner_count int
+  description longtext
+  url varchar
+  created_at datetime
+  updated_at datetime
+}
+
+Table skills {
+  skill_id varchar [pk]
+  name varchar [unique]
+  created_at datetime
+  updated_at datetime
+}
+
+Table course_skills {
+  course_id varchar
+  skill_id varchar
+  created_at datetime
+  Primary Key (course_id, skill_id)
+}
+
+Table include_types {
+  include_type_id bigint [pk, increment]
+  label varchar [unique]
+  created_at datetime
+}
+
+Table course_includes {
+  course_id varchar
+  include_type_id bigint
+  created_at datetime
+  Primary Key (course_id, include_type_id)
+}
+
+Table instructors {
+  instructor_id varchar [pk]
+  name varchar
+  info varchar
+  bio longtext
+  link varchar
+  created_at datetime
+  updated_at datetime
+}
+
+Table course_instructors {
+  course_id varchar
+  instructor_id varchar
+  role varchar
+  position int
+  created_at datetime
+  Primary Key (course_id, instructor_id)
+}
+
+Table chapters {
+  chapter_id varchar [pk]
+  course_id varchar
+  position int
+  title varchar
+  video_count int
+  created_at datetime
+  updated_at datetime
+}
+
+Table lessons {
+  lesson_id varchar [pk]
+  chapter_id varchar
+  course_id varchar
+  position int
+  title varchar
+  duration_text varchar
+  duration_seconds int
+  lesson_type varchar
+  created_at datetime
+  updated_at datetime
+}
+
+Table storage_objects {
+  storage_object_id bigint [pk, increment]
+  provider varchar
+  uri varchar
+  mime_type varchar
+  size_bytes bigint
+  checksum varchar
+  created_at datetime
+}
+
+Table media_assets {
+  media_asset_id bigint [pk, increment]
+  storage_object_id bigint
+  duration_seconds int
+  width int
+  height int
+  created_at datetime
+}
+
+Table media_renditions {
+  media_rendition_id bigint [pk, increment]
+  media_asset_id bigint
+  codec varchar
+  bitrate int
+  width int
+  height int
+  uri varchar
+  created_at datetime
+}
+
+Table lesson_media {
+  lesson_id varchar [pk]
+  media_asset_id bigint
+  playback_policy varchar
+  created_at datetime
+  updated_at datetime
+}
+
+Table captions {
+  caption_id bigint [pk, increment]
+  lesson_id varchar
+  locale varchar
+  format varchar
+  storage_object_id bigint
+  created_at datetime
+  indexes { (lesson_id, locale, format) [unique] }
+}
+
+Table transcripts {
+  transcript_id bigint [pk, increment]
+  lesson_id varchar
+  locale varchar
+  storage_object_id bigint
+  created_at datetime
+  indexes { (lesson_id, locale) [unique] }
+}
+
+Table transcript_segments {
+  transcript_segment_id bigint [pk, increment]
+  transcript_id bigint
+  start_ms int
+  end_ms int
+  text text
+}
+
+Table exercise_files {
+  exercise_file_id bigint [pk, increment]
+  lesson_id varchar
+  title varchar
+  storage_object_id bigint
+  checksum varchar
+  size_bytes bigint
+  created_at datetime
+}
+
+Table users {
+  user_id bigint [pk, increment]
+  full_name varchar
+  email varchar [unique]
+  status varchar
+  locale varchar
+  created_at datetime
+  updated_at datetime
+}
+
+Table auth_identities {
+  auth_identity_id bigint [pk, increment]
+  user_id bigint
+  provider varchar
+  provider_user_id varchar
+  created_at datetime
+  indexes { (provider, provider_user_id) [unique] }
+}
+
+Table organizations {
+  organization_id bigint [pk, increment]
+  name varchar
+  status varchar
+  created_at datetime
+  updated_at datetime
+}
+
+Table organization_domains {
+  organization_domain_id bigint [pk, increment]
+  organization_id bigint
+  domain varchar
+  verified_at datetime
+  created_at datetime
+  indexes { (organization_id, domain) [unique] }
+}
+
+Table organization_members {
+  organization_member_id bigint [pk, increment]
+  organization_id bigint
+  user_id bigint
+  status varchar
+  joined_at datetime
+  created_at datetime
+  indexes { (organization_id, user_id) [unique] }
+}
+
+Table organization_teams {
+  organization_team_id bigint [pk, increment]
+  organization_id bigint
+  name varchar
+  created_at datetime
+  indexes { (organization_id, name) [unique] }
+}
+
+Table organization_team_members {
+  organization_team_id bigint
+  organization_member_id bigint
+  created_at datetime
+  Primary Key (organization_team_id, organization_member_id)
+}
+
+Table org_sso_configs {
+  org_sso_config_id bigint [pk, increment]
+  organization_id bigint
+  sso_type varchar
+  metadata_json json
+  enabled boolean
+  created_at datetime
+  updated_at datetime
+}
+
+Table libraries {
+  library_id bigint [pk, increment]
+  name varchar
+  library_code varchar [unique]
+  country_code varchar
+  status varchar
+  created_at datetime
+  updated_at datetime
+}
+
+Table library_branches {
+  library_branch_id bigint [pk, increment]
+  library_id bigint
+  name varchar
+  address_json json
+  created_at datetime
+}
+
+Table library_patrons {
+  library_patron_id bigint [pk, increment]
+  library_id bigint
+  user_id bigint
+  patron_external_id varchar
+  created_at datetime
+  indexes { (library_id, user_id) [unique] }
+}
+
+Table library_cards {
+  library_card_id bigint [pk, increment]
+  library_patron_id bigint
+  card_number_hash binary
+  status varchar
+  created_at datetime
+  indexes { (library_patron_id, card_number_hash) [unique] }
+}
+
+Table entitlements {
+  entitlement_id bigint [pk, increment]
+  resource_type varchar
+  resource_id varchar
+  starts_at datetime
+  ends_at datetime
+  created_at datetime
+}
+
+Table entitlement_rules {
+  entitlement_rule_id bigint [pk, increment]
+  entitlement_id bigint
+  rule_type varchar
+  rule_json json
+  created_at datetime
+}
+
+Table user_entitlements {
+  user_id bigint
+  entitlement_id bigint
+  created_at datetime
+  Primary Key (user_id, entitlement_id)
+}
+
+Table org_entitlements {
+  organization_id bigint
+  entitlement_id bigint
+  created_at datetime
+  Primary Key (organization_id, entitlement_id)
+}
+
+Table library_entitlements {
+  library_id bigint
+  entitlement_id bigint
+  created_at datetime
+  Primary Key (library_id, entitlement_id)
+}
+
+Table seat_pools {
+  seat_pool_id bigint [pk, increment]
+  organization_id bigint
+  name varchar
+  seat_count int
+  created_at datetime
+  indexes { (organization_id, name) [unique] }
+}
+
+Table seat_assignments {
+  seat_assignment_id bigint [pk, increment]
+  seat_pool_id bigint
+  organization_member_id bigint
+  status varchar
+  assigned_at datetime
+  revoked_at datetime
+  indexes { (seat_pool_id, organization_member_id) [unique] }
+}
+
+Table enrollments {
+  enrollment_id bigint [pk, increment]
+  user_id bigint
+  course_id varchar
+  source_type varchar
+  source_id varchar
+  status varchar
+  started_at datetime
+  completed_at datetime
+  last_activity_at datetime
+  created_at datetime
+  updated_at datetime
+  indexes { (user_id, course_id) [unique] }
+}
+
+Table lesson_progress {
+  enrollment_id bigint
+  lesson_id varchar
+  progress_seconds int
+  last_position_seconds int
+  completed boolean
+  updated_at datetime
+  Primary Key (enrollment_id, lesson_id)
+}
+
+Table bookmarks {
+  bookmark_id bigint [pk, increment]
+  user_id bigint
+  course_id varchar
+  lesson_id varchar
+  position_seconds int
+  created_at datetime
+}
+
+Table notes {
+  note_id bigint [pk, increment]
+  user_id bigint
+  course_id varchar
+  lesson_id varchar
+  position_seconds int
+  note_text longtext
+  created_at datetime
+  updated_at datetime
+}
+
+Table course_reviews {
+  course_review_id bigint [pk, increment]
+  user_id bigint
+  course_id varchar
+  rating int
+  review_text longtext
+  status varchar
+  created_at datetime
+  updated_at datetime
+  indexes { (user_id, course_id) [unique] }
+}
+
+Table review_votes {
+  course_review_id bigint
+  user_id bigint
+  vote varchar
+  created_at datetime
+  Primary Key (course_review_id, user_id)
+}
+
+Table discussion_threads {
+  discussion_thread_id bigint [pk, increment]
+  course_id varchar
+  lesson_id varchar
+  user_id bigint
+  title varchar
+  status varchar
+  created_at datetime
+  updated_at datetime
+}
+
+Table discussion_posts {
+  discussion_post_id bigint [pk, increment]
+  discussion_thread_id bigint
+  user_id bigint
+  body longtext
+  status varchar
+  created_at datetime
+  updated_at datetime
+}
+
+Table discussion_reactions {
+  discussion_post_id bigint
+  user_id bigint
+  reaction varchar
+  created_at datetime
+  Primary Key (discussion_post_id, user_id, reaction)
+}
+
+Table quizzes {
+  quiz_id bigint [pk, increment]
+  lesson_id varchar
+  title varchar
+  passing_score_percent int
+  time_limit_seconds int
+  created_at datetime
+  updated_at datetime
+  indexes { (lesson_id) [unique] }
+}
+
+Table quiz_questions {
+  quiz_question_id bigint [pk, increment]
+  quiz_id bigint
+  question_type varchar
+  question_text longtext
+  position int
+  points int
+  created_at datetime
+  indexes { (quiz_id, position) [unique] }
+}
+
+Table quiz_options {
+  quiz_option_id bigint [pk, increment]
+  quiz_question_id bigint
+  option_text longtext
+  is_correct boolean
+  position int
+  indexes { (quiz_question_id, position) [unique] }
+}
+
+Table quiz_attempts {
+  quiz_attempt_id bigint [pk, increment]
+  quiz_id bigint
+  user_id bigint
+  started_at datetime
+  completed_at datetime
+  score_percent int
+  status varchar
+}
+
+Table quiz_answers {
+  quiz_attempt_id bigint
+  quiz_question_id bigint
+  quiz_option_id bigint
+  created_at datetime
+  Primary Key (quiz_attempt_id, quiz_question_id, quiz_option_id)
+}
+
+Table certificate_templates {
+  certificate_template_id bigint [pk, increment]
+  name varchar
+  template_html longtext
+  created_at datetime
+}
+
+Table certificates {
+  certificate_id bigint [pk, increment]
+  enrollment_id bigint
+  certificate_template_id bigint
+  certificate_code varchar [unique]
+  issued_at datetime
+  indexes { (enrollment_id) [unique] }
+}
+
+Table credential_shares {
+  credential_share_id bigint [pk, increment]
+  certificate_id bigint
+  provider varchar
+  provider_ref varchar
+  created_at datetime
+}
+
+Table plans {
+  plan_id bigint [pk, increment]
+  code varchar [unique]
+  name varchar
+  billing_period varchar
+  price_cents int
+  currency varchar
+  created_at datetime
+}
+
+Table plan_features {
+  plan_id bigint
+  feature_code varchar
+  feature_value varchar
+  Primary Key (plan_id, feature_code)
+}
+
+Table subscriptions {
+  subscription_id bigint [pk, increment]
+  subject_type varchar
+  subject_id bigint
+  plan_id bigint
+  status varchar
+  trial_ends_at datetime
+  current_period_start datetime
+  current_period_end datetime
+  cancel_at_period_end boolean
+  created_at datetime
+  updated_at datetime
+}
+
+Table coupons {
+  coupon_id bigint [pk, increment]
+  code varchar [unique]
+  percent_off int
+  amount_off_cents int
+  currency varchar
+  starts_at datetime
+  ends_at datetime
+  max_redemptions int
+  created_at datetime
+}
+
+Table subscription_coupons {
+  subscription_id bigint
+  coupon_id bigint
+  applied_at datetime
+  Primary Key (subscription_id, coupon_id)
+}
+
+Table invoices {
+  invoice_id bigint [pk, increment]
+  subscription_id bigint
+  amount_cents int
+  currency varchar
+  status varchar
+  issued_at datetime
+  due_at datetime
+}
+
+Table invoice_items {
+  invoice_item_id bigint [pk, increment]
+  invoice_id bigint
+  description varchar
+  amount_cents int
+  quantity int
+}
+
+Table payments {
+  payment_id bigint [pk, increment]
+  invoice_id bigint
+  provider varchar
+  provider_payment_id varchar
+  amount_cents int
+  currency varchar
+  status varchar
+  created_at datetime
+}
+
+Table refunds {
+  refund_id bigint [pk, increment]
+  payment_id bigint
+  amount_cents int
+  status varchar
+  created_at datetime
+}
+
+Table devices {
+  device_id bigint [pk, increment]
+  user_id bigint
+  device_type varchar
+  device_fingerprint_hash varchar
+  created_at datetime
+  indexes { (user_id, device_fingerprint_hash) [unique] }
+}
+
+Table watch_sessions {
+  watch_session_id bigint [pk, increment]
+  user_id bigint
+  lesson_id varchar
+  device_id bigint
+  started_at datetime
+  ended_at datetime
+  total_watch_seconds int
+}
+
+Table playback_events {
+  playback_event_id bigint [pk, increment]
+  user_id bigint
+  lesson_id varchar
+  watch_session_id bigint
+  event_type varchar
+  position_seconds int
+  created_at datetime
+}
+
+Table search_events {
+  search_event_id bigint [pk, increment]
+  user_id bigint
+  query_text varchar
+  filters_json json
+  created_at datetime
+}
+
+Table content_events {
+  content_event_id bigint [pk, increment]
+  user_id bigint
+  event_name varchar
+  entity_type varchar
+  entity_id varchar
+  meta_json json
+  created_at datetime
+}
+
+Table trending_items {
+  trending_item_id bigint [pk, increment]
+  item_type varchar
+  item_id varchar
+  window varchar
+  score decimal
+  computed_at datetime
+}
+
+Table recommendation_models {
+  recommendation_model_id bigint [pk, increment]
+  name varchar
+  version varchar
+  created_at datetime
+  indexes { (name, version) [unique] }
+}
+
+Table recommendations {
+  recommendation_id bigint [pk, increment]
+  user_id bigint
+  recommendation_model_id bigint
+  created_at datetime
+}
+
+Table recommendation_items {
+  recommendation_id bigint
+  item_type varchar
+  item_id varchar
+  score decimal
+  position int
+  created_at datetime
+  Primary Key (recommendation_id, item_type, item_id)
+  indexes { (recommendation_id, position) [unique] }
+}
+
+Table user_feed_items {
+  user_feed_item_id bigint [pk, increment]
+  user_id bigint
+  item_type varchar
+  item_id varchar
+  rank_score decimal
+  created_at datetime
+  seen_at datetime
+}
+
+Table notification_templates {
+  notification_template_id bigint [pk, increment]
+  channel varchar
+  code varchar
+  template_json json
+  created_at datetime
+  indexes { (channel, code) [unique] }
+}
+
+Table notifications {
+  notification_id bigint [pk, increment]
+  user_id bigint
+  notification_template_id bigint
+  payload_json json
+  status varchar
+  created_at datetime
+  read_at datetime
+}
+
+Table email_outbox {
+  email_outbox_id bigint [pk, increment]
+  user_id bigint
+  subject varchar
+  body longtext
+  status varchar
+  provider_message_id varchar
+  created_at datetime
+}
+
+Table push_tokens {
+  push_token_id bigint [pk, increment]
+  user_id bigint
+  platform varchar
+  token varchar
+  created_at datetime
+  indexes { (platform, token) [unique] }
+}
+
+Table audit_logs {
+  audit_log_id bigint [pk, increment]
+  actor_user_id bigint
+  action varchar
+  entity_type varchar
+  entity_id varchar
+  diff_json json
+  created_at datetime
+}
+
+Table content_moderation_queue {
+  content_moderation_queue_id bigint [pk, increment]
+  entity_type varchar
+  entity_id varchar
+  reason varchar
+  status varchar
+  created_at datetime
+  reviewed_by bigint
+  reviewed_at datetime
+}
+
+Table abuse_reports {
+  abuse_report_id bigint [pk, increment]
+  reporter_user_id bigint
+  entity_type varchar
+  entity_id varchar
+  reason varchar
+  details longtext
+  status varchar
+  created_at datetime
+}
+
+Table consents {
+  consent_id bigint [pk, increment]
+  user_id bigint
+  consent_type varchar
+  granted boolean
+  created_at datetime
+  indexes { (user_id, consent_type) [unique] }
+}
+
+Table data_requests {
+  data_request_id bigint [pk, increment]
+  user_id bigint
+  request_type varchar
+  status varchar
+  created_at datetime
+  completed_at datetime
+}
+
+Ref: courses.topic_id > topics.topic_id
+Ref: course_skills.course_id > courses.course_id
+Ref: course_skills.skill_id > skills.skill_id
+Ref: course_includes.course_id > courses.course_id
+Ref: course_includes.include_type_id > include_types.include_type_id
+Ref: course_instructors.course_id > courses.course_id
+Ref: course_instructors.instructor_id > instructors.instructor_id
+Ref: chapters.course_id > courses.course_id
+Ref: lessons.course_id > courses.course_id
+Ref: lessons.chapter_id > chapters.chapter_id
+Ref: media_assets.storage_object_id > storage_objects.storage_object_id
+Ref: media_renditions.media_asset_id > media_assets.media_asset_id
+Ref: lesson_media.lesson_id > lessons.lesson_id
+Ref: lesson_media.media_asset_id > media_assets.media_asset_id
+Ref: captions.lesson_id > lessons.lesson_id
+Ref: captions.storage_object_id > storage_objects.storage_object_id
+Ref: transcripts.lesson_id > lessons.lesson_id
+Ref: transcripts.storage_object_id > storage_objects.storage_object_id
+Ref: transcript_segments.transcript_id > transcripts.transcript_id
+Ref: exercise_files.lesson_id > lessons.lesson_id
+Ref: exercise_files.storage_object_id > storage_objects.storage_object_id
+Ref: auth_identities.user_id > users.user_id
+Ref: organization_domains.organization_id > organizations.organization_id
+Ref: organization_members.organization_id > organizations.organization_id
+Ref: organization_members.user_id > users.user_id
+Ref: organization_teams.organization_id > organizations.organization_id
+Ref: organization_team_members.organization_team_id > organization_teams.organization_team_id
+Ref: organization_team_members.organization_member_id > organization_members.organization_member_id
+Ref: org_sso_configs.organization_id > organizations.organization_id
+Ref: library_branches.library_id > libraries.library_id
+Ref: library_patrons.library_id > libraries.library_id
+Ref: library_patrons.user_id > users.user_id
+Ref: library_cards.library_patron_id > library_patrons.library_patron_id
+Ref: entitlement_rules.entitlement_id > entitlements.entitlement_id
+Ref: user_entitlements.user_id > users.user_id
+Ref: user_entitlements.entitlement_id > entitlements.entitlement_id
+Ref: org_entitlements.organization_id > organizations.organization_id
+Ref: org_entitlements.entitlement_id > entitlements.entitlement_id
+Ref: library_entitlements.library_id > libraries.library_id
+Ref: library_entitlements.entitlement_id > entitlements.entitlement_id
+Ref: seat_pools.organization_id > organizations.organization_id
+Ref: seat_assignments.seat_pool_id > seat_pools.seat_pool_id
+Ref: seat_assignments.organization_member_id > organization_members.organization_member_id
+Ref: enrollments.user_id > users.user_id
+Ref: enrollments.course_id > courses.course_id
+Ref: lesson_progress.enrollment_id > enrollments.enrollment_id
+Ref: lesson_progress.lesson_id > lessons.lesson_id
+Ref: bookmarks.user_id > users.user_id
+Ref: bookmarks.course_id > courses.course_id
+Ref: bookmarks.lesson_id > lessons.lesson_id
+Ref: notes.user_id > users.user_id
+Ref: notes.course_id > courses.course_id
+Ref: notes.lesson_id > lessons.lesson_id
+Ref: course_reviews.user_id > users.user_id
+Ref: course_reviews.course_id > courses.course_id
+Ref: review_votes.course_review_id > course_reviews.course_review_id
+Ref: review_votes.user_id > users.user_id
+Ref: discussion_threads.course_id > courses.course_id
+Ref: discussion_threads.lesson_id > lessons.lesson_id
+Ref: discussion_threads.user_id > users.user_id
+Ref: discussion_posts.discussion_thread_id > discussion_threads.discussion_thread_id
+Ref: discussion_posts.user_id > users.user_id
+Ref: discussion_reactions.discussion_post_id > discussion_posts.discussion_post_id
+Ref: discussion_reactions.user_id > users.user_id
+Ref: quizzes.lesson_id > lessons.lesson_id
+Ref: quiz_questions.quiz_id > quizzes.quiz_id
+Ref: quiz_options.quiz_question_id > quiz_questions.quiz_question_id
+Ref: quiz_attempts.quiz_id > quizzes.quiz_id
+Ref: quiz_attempts.user_id > users.user_id
+Ref: quiz_answers.quiz_attempt_id > quiz_attempts.quiz_attempt_id
+Ref: quiz_answers.quiz_question_id > quiz_questions.quiz_question_id
+Ref: quiz_answers.quiz_option_id > quiz_options.quiz_option_id
+Ref: certificates.enrollment_id > enrollments.enrollment_id
+Ref: certificates.certificate_template_id > certificate_templates.certificate_template_id
+Ref: credential_shares.certificate_id > certificates.certificate_id
+Ref: plan_features.plan_id > plans.plan_id
+Ref: subscriptions.plan_id > plans.plan_id
+Ref: subscription_coupons.subscription_id > subscriptions.subscription_id
+Ref: subscription_coupons.coupon_id > coupons.coupon_id
+Ref: invoices.subscription_id > subscriptions.subscription_id
+Ref: invoice_items.invoice_id > invoices.invoice_id
+Ref: payments.invoice_id > invoices.invoice_id
+Ref: refunds.payment_id > payments.payment_id
+Ref: devices.user_id > users.user_id
+Ref: watch_sessions.user_id > users.user_id
+Ref: watch_sessions.lesson_id > lessons.lesson_id
+Ref: watch_sessions.device_id > devices.device_id
+Ref: playback_events.user_id > users.user_id
+Ref: playback_events.lesson_id > lessons.lesson_id
+Ref: playback_events.watch_session_id > watch_sessions.watch_session_id
+Ref: search_events.user_id > users.user_id
+Ref: content_events.user_id > users.user_id
+Ref: recommendations.user_id > users.user_id
+Ref: recommendations.recommendation_model_id > recommendation_models.recommendation_model_id
+Ref: recommendation_items.recommendation_id > recommendations.recommendation_id
+Ref: user_feed_items.user_id > users.user_id
+Ref: notifications.user_id > users.user_id
+Ref: notifications.notification_template_id > notification_templates.notification_template_id
+Ref: email_outbox.user_id > users.user_id
+Ref: push_tokens.user_id > users.user_id
+Ref: audit_logs.actor_user_id > users.user_id
+Ref: content_moderation_queue.reviewed_by > users.user_id
+Ref: abuse_reports.reporter_user_id > users.user_id
+Ref: consents.user_id > users.user_id
+Ref: data_requests.user_id > users.user_id
